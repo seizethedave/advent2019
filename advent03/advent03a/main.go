@@ -62,19 +62,17 @@ func evalString(input string, seen map[string]struct{}, markSeen bool, intersect
 }
 
 func manhattan(x, y int) int {
-	dist := x
-
-	if dist < 0 {
-		dist = -dist
+	distX := x
+	if distX < 0 {
+		distX = -distX
 	}
 
-	if y >= 0 {
-		dist += y
-	} else {
-		dist -= y
+	distY := y
+	if distY < 0 {
+		distY = -distY
 	}
 
-	return dist
+	return distX + distY
 }
 
 func main() {
