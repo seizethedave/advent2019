@@ -1,17 +1,17 @@
 package intcode
 
 import (
-  "fmt"
+	"fmt"
 )
 
 type Word int64
 type Address int64
 
 const (
-  add               = Word(1)
-  mul               = Word(2)
-  halt              = Word(99)
-  instructionLength = Address(4)
+	add               = Word(1)
+	mul               = Word(2)
+	halt              = Word(99)
+	instructionLength = Address(4)
 )
 
 func opAdd(mem []Word, in1, in2, out Address) {
