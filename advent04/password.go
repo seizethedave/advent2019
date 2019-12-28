@@ -22,7 +22,7 @@ func Incr(digits []byte) {
 
 	// enforce non-decreasing rule.
 	minDigit := digits[place]
-  place++
+	place++
 
 	for ; place < len(digits); place++ {
 		if digits[place] < minDigit {
