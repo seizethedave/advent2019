@@ -1,42 +1,11 @@
-package main
+package advent04
 
 import (
 	"bytes"
 	"fmt"
+
+  password "github.com/seizethedave/advent2019/advent04"
 )
-
-// incr increments the given number (embodied by a slice of the digits)
-//  to the next number that conforms to the "non-decreasing" rule.
-func incr(digits []byte) {
-	// increment
-	place := len(digits) - 1
-	digits[place]++
-
-	// carry
-	for ; place >= 0; place-- {
-		if digits[place] == 10 {
-			if place == 0 {
-				return
-			}
-			digits[place] = 0
-			digits[place-1]++
-		} else {
-			break
-		}
-	}
-
-	// enforce non-decreasing rule.
-	minDigit := digits[place]
-  place++
-
-	for ; place < len(digits); place++ {
-		if digits[place] < minDigit {
-			digits[place] = minDigit
-		} else if digits[place] > minDigit {
-			minDigit = digits[place]
-		}
-	}
-}
 
 func hasRepeat(digits []byte) bool {
 	for i := 0; i < len(digits)-1; i++ {
@@ -53,7 +22,7 @@ func main() {
 	end := []byte{5, 8, 0, 7, 6, 9}
 	num := 0
 
-	for ; bytes.Compare(digits, end) <= 0; incr(digits) {
+	for ; bytes.Compare(digits, end) <= 0; password.Incr(digits) {
     if hasRepeat(digits) {
 			num++
 		}
