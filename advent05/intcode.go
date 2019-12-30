@@ -17,30 +17,37 @@ const (
 	input  = Word(3)
 	output = Word(4)
 	halt   = Word(99)
-
-	instructionLength = Address(4)
 )
 
-const (
-	paramModePosition  = 0
-	paramModeImmediate = 1
-)
-
-func paramMode(header Word, index Address) int {
-	modeDigits := header / 100
-
-	for i := Address(0); i < index; i++ {
-		modeDigits /= 10
-	}
-
-	return int(modeDigits % 10)
+type Header struct {
+	opcode    Word
+	paramMask uint8
 }
 
-func opref(ptr, index Address, header Word, mem []Word) Address {
-	if paramMode(header, index) == paramModePosition {
-		return Address(mem[ptr+index])
+func readHeader(header Word) Header {
+	opcode := header % 100
+	flags := header / 100
+	var mask uint8
+	i := 0
+
+	for flags != 0 {
+		mask |= uint8(((flags % 10) & 1) << i)
+		flags /= 10
+		i++
+	}
+
+	return Header{
+		opcode:    opcode,
+		paramMask: mask,
+	}
+}
+
+func (h Header) opref(ptr, index Address, mem []Word) Address {
+	immediate := (h.paramMask & (1 << index)) != 0
+	if immediate {
+		return ptr + 1 + index
 	} else {
-		return ptr + index
+		return Address(mem[ptr+1+index])
 	}
 }
 
@@ -64,35 +71,34 @@ type BinaryOp struct {
 }
 
 type Runnable interface {
-	Exec(mem []Word, ptr Address) (Address, error)
+	Exec(mem []Word, ptr Address, header Header) (Address, error)
 }
 
-func (op SimpleInputOp) Exec(mem []Word, ptr Address) (Address, error) {
+func (op SimpleInputOp) Exec(mem []Word, ptr Address, header Header) (Address, error) {
 	// ptr+1 contains the address of where to write the input.
 	op.fun(mem, Address(mem[ptr+1]))
 	return ptr + 2, nil
 }
 
-func (op SimpleOutputOp) Exec(mem []Word, ptr Address) (Address, error) {
-	header := mem[ptr]
-	op.fun(mem, opref(ptr, 1, header, mem))
+func (op SimpleOutputOp) Exec(mem []Word, ptr Address, header Header) (Address, error) {
+	op.fun(mem, header.opref(ptr, 0, mem))
 	return ptr + 2, nil
 }
 
-func (op BinaryOp) Exec(mem []Word, ptr Address) (Address, error) {
-	header := mem[ptr]
-	op.fun(mem, opref(ptr, 1, header, mem), opref(ptr, 2, header, mem), ptr+3)
+func (op BinaryOp) Exec(mem []Word, ptr Address, header Header) (Address, error) {
+	op.fun(mem, header.opref(ptr, 0, mem), header.opref(ptr, 1, mem), Address(mem[ptr+3]))
 	return ptr + 4, nil
 }
 
 func ExecOp(mem []Word, ptr Address) (Address, Runnable, error) {
-	opcode := mem[ptr] % 100
-	op, ok := ops[opcode]
+	header := readHeader(mem[ptr])
+
+	op, ok := ops[header.opcode]
 	if !ok {
-		return 0, op, fmt.Errorf("invalid opcode %v", opcode)
+		return 0, op, fmt.Errorf("invalid opcode %v", header.opcode)
 	}
 
-	ptr, err := op.Exec(mem, ptr)
+	ptr, err := op.Exec(mem, ptr, header)
 	if err != nil {
 		return 0, op, err
 	}
@@ -100,12 +106,12 @@ func ExecOp(mem []Word, ptr Address) (Address, Runnable, error) {
 	return ptr, op, nil
 }
 
-func opAdd(mem []Word, lhs, rhs Address, out Address) {
-	mem[mem[out]] = mem[lhs] + mem[rhs]
+func opAdd(mem []Word, lhs, rhs, out Address) {
+	mem[out] = mem[lhs] + mem[rhs]
 }
 
-func opMul(mem []Word, lhs, rhs Address, out Address) {
-	mem[mem[out]] = mem[lhs] * mem[rhs]
+func opMul(mem []Word, lhs, rhs, out Address) {
+	mem[out] = mem[lhs] * mem[rhs]
 }
 
 func opInput(mem []Word, operand Address) {
@@ -119,11 +125,11 @@ func opInput(mem []Word, operand Address) {
 	if err != nil {
 		panic(err)
 	}
-	mem[mem[operand]] = Word(v)
+	mem[operand] = Word(v)
 }
 
 func opOutput(mem []Word, operand Address) {
-	fmt.Print(operand)
+	fmt.Println(operand)
 }
 
 var ops = map[Word]Runnable{
