@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	memory := []advent05.Word{3, 0, 4, 0, 99}
+	memory := []advent05.Word{1002, 4, 3, 4, 33}
 
 	err := advent05.Exec(memory)
 	if err != nil {

@@ -21,33 +21,41 @@ const (
 	instructionLength = Address(4)
 )
 
-type Op struct {
-	header Word
-}
-
 const (
 	paramModePosition  = 0
 	paramModeImmediate = 1
 )
 
-func (op *Op) paramMode(index int) int {
-	modeDigits := op.header / 100
+func paramMode(header Word, index Address) int {
+	modeDigits := header / 100
 
-	for i := 0; i < index; i++ {
+	for i := Address(0); i < index; i++ {
 		modeDigits /= 10
 	}
 
 	return int(modeDigits % 10)
 }
 
-type SimpleOp struct {
+func opref(ptr, index Address, header Word, mem []Word) Address {
+	if paramMode(header, index) == paramModePosition {
+		return Address(mem[ptr+index])
+	} else {
+		return ptr + index
+	}
+}
+
+type Op struct {
+	header Word
+}
+
+type SimpleInputOp struct {
 	Op
 	fun func([]Word, Address)
 }
 
-type UnaryOp struct {
+type SimpleOutputOp struct {
 	Op
-	fun func([]Word, Address, Address)
+	fun func([]Word, Address)
 }
 
 type BinaryOp struct {
@@ -59,19 +67,21 @@ type Runnable interface {
 	Exec(mem []Word, ptr Address) (Address, error)
 }
 
-func (op SimpleOp) Exec(mem []Word, ptr Address) (Address, error) {
-	op.header = mem[ptr]
-	op.fun(mem, ptr+1)
+func (op SimpleInputOp) Exec(mem []Word, ptr Address) (Address, error) {
+	// ptr+1 contains the address of where to write the input.
+	op.fun(mem, Address(mem[ptr+1]))
 	return ptr + 2, nil
 }
-func (op UnaryOp) Exec(mem []Word, ptr Address) (Address, error) {
-	op.header = mem[ptr]
-	op.fun(mem, ptr+1, ptr+2)
-	return ptr + 3, nil
+
+func (op SimpleOutputOp) Exec(mem []Word, ptr Address) (Address, error) {
+	header := mem[ptr]
+	op.fun(mem, opref(ptr, 1, header, mem))
+	return ptr + 2, nil
 }
+
 func (op BinaryOp) Exec(mem []Word, ptr Address) (Address, error) {
-	op.header = mem[ptr]
-	op.fun(mem, ptr+1, ptr+2, ptr+3)
+	header := mem[ptr]
+	op.fun(mem, opref(ptr, 1, header, mem), opref(ptr, 2, header, mem), ptr+3)
 	return ptr + 4, nil
 }
 
@@ -90,12 +100,12 @@ func ExecOp(mem []Word, ptr Address) (Address, Runnable, error) {
 	return ptr, op, nil
 }
 
-func opAdd(mem []Word, in1, in2, out Address) {
-	mem[mem[out]] = mem[mem[in1]] + mem[mem[in2]]
+func opAdd(mem []Word, lhs, rhs Address, out Address) {
+	mem[mem[out]] = mem[lhs] + mem[rhs]
 }
 
-func opMul(mem []Word, in1, in2, out Address) {
-	mem[mem[out]] = mem[mem[in1]] * mem[mem[in2]]
+func opMul(mem []Word, lhs, rhs Address, out Address) {
+	mem[mem[out]] = mem[lhs] * mem[rhs]
 }
 
 func opInput(mem []Word, operand Address) {
@@ -113,7 +123,7 @@ func opInput(mem []Word, operand Address) {
 }
 
 func opOutput(mem []Word, operand Address) {
-	fmt.Print(mem[mem[operand]])
+	fmt.Print(operand)
 }
 
 var ops = map[Word]Runnable{
@@ -123,10 +133,10 @@ var ops = map[Word]Runnable{
 	mul: BinaryOp{
 		fun: opMul,
 	},
-	input: SimpleOp{
+	input: SimpleInputOp{
 		fun: opInput,
 	},
-	output: SimpleOp{
+	output: SimpleOutputOp{
 		fun: opOutput,
 	},
 }
