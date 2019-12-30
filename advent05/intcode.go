@@ -17,6 +17,8 @@ const (
 	input  = Word(3)
 	output = Word(4)
 	halt   = Word(99)
+
+	debug = false
 )
 
 type Header struct {
@@ -31,7 +33,7 @@ func readHeader(header Word) Header {
 	i := 0
 
 	for flags != 0 {
-		mask |= uint8(((flags % 10) & 1) << i)
+		mask |= uint8((flags & 1) << i)
 		flags /= 10
 		i++
 	}
@@ -76,16 +78,28 @@ type Runnable interface {
 
 func (op SimpleInputOp) Exec(mem []Word, ptr Address, header Header) (Address, error) {
 	// ptr+1 contains the address of where to write the input.
+	if debug {
+		fmt.Fprintln(os.Stderr, " >", mem[ptr:ptr+2])
+	}
+
 	op.fun(mem, Address(mem[ptr+1]))
 	return ptr + 2, nil
 }
 
 func (op SimpleOutputOp) Exec(mem []Word, ptr Address, header Header) (Address, error) {
+	if debug {
+		fmt.Fprintln(os.Stderr, " >", mem[ptr:ptr+2])
+	}
+
 	op.fun(mem, header.opref(ptr, 0, mem))
 	return ptr + 2, nil
 }
 
 func (op BinaryOp) Exec(mem []Word, ptr Address, header Header) (Address, error) {
+	if debug {
+		fmt.Fprintln(os.Stderr, " >", mem[ptr:ptr+4])
+	}
+
 	op.fun(mem, header.opref(ptr, 0, mem), header.opref(ptr, 1, mem), Address(mem[ptr+3]))
 	return ptr + 4, nil
 }
@@ -129,7 +143,7 @@ func opInput(mem []Word, operand Address) {
 }
 
 func opOutput(mem []Word, operand Address) {
-	fmt.Println(operand)
+	fmt.Println(mem[operand])
 }
 
 var ops = map[Word]Runnable{
