@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-type Word int64
-type Address int64
+type Word int
+type Address int
 
 const (
 	add    = Word(1)
@@ -23,17 +23,17 @@ const (
 
 type Header struct {
 	opcode    Word
-	paramMask uint8
+	paramMask byte
 }
 
 func readHeader(header Word) Header {
 	opcode := header % 100
 	flags := header / 100
-	var mask uint8
+	var mask byte
 	i := 0
 
 	for flags != 0 {
-		mask |= uint8((flags & 1) << i)
+		mask |= byte((flags & 1) << i)
 		flags /= 10
 		i++
 	}
