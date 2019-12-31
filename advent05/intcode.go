@@ -44,7 +44,7 @@ func readHeader(header Word) Header {
 	}
 }
 
-func (h Header) opref(ptr, index Address, mem []Word) Address {
+func (h Header) opref(mem []Word, ptr, index Address) Address {
 	immediate := (h.paramMask & (1 << index)) != 0
 	if immediate {
 		return ptr + 1 + index
@@ -57,12 +57,7 @@ type Op struct {
 	header Word
 }
 
-type SimpleInputOp struct {
-	Op
-	fun func([]Word, Address)
-}
-
-type SimpleOutputOp struct {
+type SimpleOp struct {
 	Op
 	fun func([]Word, Address)
 }
@@ -73,51 +68,37 @@ type BinaryOp struct {
 }
 
 type Runnable interface {
-	Exec(mem []Word, ptr Address, header Header) (Address, error)
+	Exec(mem []Word, ptr *Address, header Header)
 }
 
-func (op SimpleInputOp) Exec(mem []Word, ptr Address, header Header) (Address, error) {
-	// ptr+1 contains the address of where to write the input.
+func (op SimpleOp) Exec(mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", mem[ptr:ptr+2])
+		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+2])
 	}
 
-	op.fun(mem, Address(mem[ptr+1]))
-	return ptr + 2, nil
+	op.fun(mem, header.opref(mem, *ptr, 0))
+	*ptr += 2
 }
 
-func (op SimpleOutputOp) Exec(mem []Word, ptr Address, header Header) (Address, error) {
+func (op BinaryOp) Exec(mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", mem[ptr:ptr+2])
+		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+4])
 	}
 
-	op.fun(mem, header.opref(ptr, 0, mem))
-	return ptr + 2, nil
+	op.fun(mem, header.opref(mem, *ptr, 0), header.opref(mem, *ptr, 1), Address(mem[*ptr+3]))
+	*ptr += 4
 }
 
-func (op BinaryOp) Exec(mem []Word, ptr Address, header Header) (Address, error) {
-	if debug {
-		fmt.Fprintln(os.Stderr, " >", mem[ptr:ptr+4])
-	}
-
-	op.fun(mem, header.opref(ptr, 0, mem), header.opref(ptr, 1, mem), Address(mem[ptr+3]))
-	return ptr + 4, nil
-}
-
-func ExecOp(mem []Word, ptr Address) (Address, Runnable, error) {
-	header := readHeader(mem[ptr])
+func ExecOp(mem []Word, ptr *Address) error {
+	header := readHeader(mem[*ptr])
 
 	op, ok := ops[header.opcode]
 	if !ok {
-		return 0, op, fmt.Errorf("invalid opcode %v", header.opcode)
+		return fmt.Errorf("invalid opcode %v", header.opcode)
 	}
 
-	ptr, err := op.Exec(mem, ptr, header)
-	if err != nil {
-		return 0, op, err
-	}
-
-	return ptr, op, nil
+	op.Exec(mem, ptr, header)
+	return nil
 }
 
 func opAdd(mem []Word, lhs, rhs, out Address) {
@@ -153,10 +134,10 @@ var ops = map[Word]Runnable{
 	mul: BinaryOp{
 		fun: opMul,
 	},
-	input: SimpleInputOp{
+	input: SimpleOp{
 		fun: opInput,
 	},
-	output: SimpleOutputOp{
+	output: SimpleOp{
 		fun: opOutput,
 	},
 }
@@ -164,12 +145,10 @@ var ops = map[Word]Runnable{
 // Exec runs a program.
 func Exec(memory []Word) error {
 	for address := Address(0); memory[address] != halt; {
-		addr, _, err := ExecOp(memory, address)
+		err := ExecOp(memory, &address)
 		if err != nil {
 			return err
 		}
-
-		address = addr
 	}
 
 	return nil
