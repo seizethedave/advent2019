@@ -12,11 +12,15 @@ type Word int
 type Address int
 
 const (
-	add    = Word(1)
-	mul    = Word(2)
-	input  = Word(3)
-	output = Word(4)
-	halt   = Word(99)
+	add         = Word(1)
+	mul         = Word(2)
+	input       = Word(3)
+	output      = Word(4)
+	jumpIfTrue  = Word(5)
+	jumpIfFalse = Word(6)
+	lessThan    = Word(7)
+	equals      = Word(8)
+	halt        = Word(99)
 
 	debug = false
 )
@@ -67,6 +71,19 @@ type BinaryOp struct {
 	fun func([]Word, Address, Address, Address)
 }
 
+type JumpIfTrueOp struct {
+	Op
+}
+
+type JumpIfFalseOp struct {
+	Op
+}
+
+type CompareOp struct {
+	Op
+	fun func([]Word, Address, Address, Address)
+}
+
 type Runnable interface {
 	Exec(mem []Word, ptr *Address, header Header)
 }
@@ -81,6 +98,37 @@ func (op SimpleOp) Exec(mem []Word, ptr *Address, header Header) {
 }
 
 func (op BinaryOp) Exec(mem []Word, ptr *Address, header Header) {
+	if debug {
+		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+4])
+	}
+
+	op.fun(mem, header.opref(mem, *ptr, 0), header.opref(mem, *ptr, 1), Address(mem[*ptr+3]))
+	*ptr += 4
+}
+
+func (op JumpIfTrueOp) Exec(mem []Word, ptr *Address, header Header) {
+	if debug {
+		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+3])
+	}
+	if mem[header.opref(mem, *ptr, 0)] != 0 {
+		*ptr = Address(mem[header.opref(mem, *ptr, 1)])
+	} else {
+		*ptr += 3
+	}
+}
+
+func (op JumpIfFalseOp) Exec(mem []Word, ptr *Address, header Header) {
+	if debug {
+		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+3])
+	}
+	if mem[header.opref(mem, *ptr, 0)] == 0 {
+		*ptr = Address(mem[header.opref(mem, *ptr, 1)])
+	} else {
+		*ptr += 3
+	}
+}
+
+func (op CompareOp) Exec(mem []Word, ptr *Address, header Header) {
 	if debug {
 		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+4])
 	}
@@ -127,6 +175,22 @@ func opOutput(mem []Word, operand Address) {
 	fmt.Println(mem[operand])
 }
 
+func opLessThan(mem []Word, lhs, rhs, out Address) {
+	if mem[lhs] < mem[rhs] {
+		mem[out] = 1
+	} else {
+		mem[out] = 0
+	}
+}
+
+func opEquals(mem []Word, lhs, rhs, out Address) {
+	if mem[lhs] == mem[rhs] {
+		mem[out] = 1
+	} else {
+		mem[out] = 0
+	}
+}
+
 var ops = map[Word]Runnable{
 	add: BinaryOp{
 		fun: opAdd,
@@ -139,6 +203,14 @@ var ops = map[Word]Runnable{
 	},
 	output: SimpleOp{
 		fun: opOutput,
+	},
+	jumpIfTrue:  JumpIfTrueOp{},
+	jumpIfFalse: JumpIfFalseOp{},
+	lessThan: CompareOp{
+		fun: opLessThan,
+	},
+	equals: CompareOp{
+		fun: opEquals,
 	},
 }
 
