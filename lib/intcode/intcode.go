@@ -8,6 +8,15 @@ import (
 	"strings"
 )
 
+type Interpreter struct {
+	IO *InterpreterIO
+}
+
+type InterpreterIO struct {
+	InputFunc func() Word
+	OutputFunc func(Word)
+}
+
 type Word int
 type Address int
 
@@ -62,12 +71,12 @@ type Op struct {
 
 type SimpleOp struct {
 	Op
-	fun func([]Word, Address)
+	fun func(*Interpreter, []Word, Address)
 }
 
 type BinaryOp struct {
 	Op
-	fun func([]Word, Address, Address, Address)
+	fun func(*Interpreter, []Word, Address, Address, Address)
 }
 
 type JumpIfTrueOp struct {
@@ -80,32 +89,32 @@ type JumpIfFalseOp struct {
 
 type CompareOp struct {
 	Op
-	fun func([]Word, Address, Address, Address)
+	fun func(*Interpreter, []Word, Address, Address, Address)
 }
 
 type Runnable interface {
-	Exec(mem []Word, ptr *Address, header Header)
+	Exec(it *Interpreter, mem []Word, ptr *Address, header Header)
 }
 
-func (op SimpleOp) Exec(mem []Word, ptr *Address, header Header) {
+func (op SimpleOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
 		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+2])
 	}
 
-	op.fun(mem, header.opref(mem, *ptr, 0))
+	op.fun(it, mem, header.opref(mem, *ptr, 0))
 	*ptr += 2
 }
 
-func (op BinaryOp) Exec(mem []Word, ptr *Address, header Header) {
+func (op BinaryOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
 		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+4])
 	}
 
-	op.fun(mem, header.opref(mem, *ptr, 0), header.opref(mem, *ptr, 1), Address(mem[*ptr+3]))
+	op.fun(it, mem, header.opref(mem, *ptr, 0), header.opref(mem, *ptr, 1), Address(mem[*ptr+3]))
 	*ptr += 4
 }
 
-func (op JumpIfTrueOp) Exec(mem []Word, ptr *Address, header Header) {
+func (op JumpIfTrueOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
 		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+3])
 	}
@@ -116,7 +125,7 @@ func (op JumpIfTrueOp) Exec(mem []Word, ptr *Address, header Header) {
 	}
 }
 
-func (op JumpIfFalseOp) Exec(mem []Word, ptr *Address, header Header) {
+func (op JumpIfFalseOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
 		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+3])
 	}
@@ -127,54 +136,32 @@ func (op JumpIfFalseOp) Exec(mem []Word, ptr *Address, header Header) {
 	}
 }
 
-func (op CompareOp) Exec(mem []Word, ptr *Address, header Header) {
+func (op CompareOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
 		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+4])
 	}
 
-	op.fun(mem, header.opref(mem, *ptr, 0), header.opref(mem, *ptr, 1), Address(mem[*ptr+3]))
+	op.fun(it, mem, header.opref(mem, *ptr, 0), header.opref(mem, *ptr, 1), Address(mem[*ptr+3]))
 	*ptr += 4
 }
 
-func ExecOp(mem []Word, ptr *Address) error {
-	header := readHeader(mem[*ptr])
-
-	op, ok := ops[header.opcode]
-	if !ok {
-		return fmt.Errorf("invalid opcode %v", header.opcode)
-	}
-
-	op.Exec(mem, ptr, header)
-	return nil
-}
-
-func opAdd(mem []Word, lhs, rhs, out Address) {
+func opAdd(it *Interpreter, mem []Word, lhs, rhs, out Address) {
 	mem[out] = mem[lhs] + mem[rhs]
 }
 
-func opMul(mem []Word, lhs, rhs, out Address) {
+func opMul(it *Interpreter, mem []Word, lhs, rhs, out Address) {
 	mem[out] = mem[lhs] * mem[rhs]
 }
 
-func opInput(mem []Word, operand Address) {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter input: ")
-	s, err := reader.ReadString('\n')
-	if err != nil {
-		panic(err)
-	}
-	v, err := strconv.Atoi(strings.TrimSpace(s))
-	if err != nil {
-		panic(err)
-	}
-	mem[operand] = Word(v)
+func opInput(it *Interpreter, mem []Word, operand Address) {
+	mem[operand] = it.IO.InputFunc()
 }
 
-func opOutput(mem []Word, operand Address) {
-	fmt.Println(mem[operand])
+func opOutput(it *Interpreter, mem []Word, operand Address) {
+	it.IO.OutputFunc(mem[operand])
 }
 
-func opLessThan(mem []Word, lhs, rhs, out Address) {
+func opLessThan(it *Interpreter, mem []Word, lhs, rhs, out Address) {
 	if mem[lhs] < mem[rhs] {
 		mem[out] = 1
 	} else {
@@ -182,7 +169,7 @@ func opLessThan(mem []Word, lhs, rhs, out Address) {
 	}
 }
 
-func opEquals(mem []Word, lhs, rhs, out Address) {
+func opEquals(it *Interpreter, mem []Word, lhs, rhs, out Address) {
 	if mem[lhs] == mem[rhs] {
 		mem[out] = 1
 	} else {
@@ -213,10 +200,47 @@ var ops = map[Word]Runnable{
 	},
 }
 
+func (it *Interpreter) ExecOp(mem []Word, ptr *Address) error {
+	header := readHeader(mem[*ptr])
+
+	op, ok := ops[header.opcode]
+	if !ok {
+		return fmt.Errorf("invalid opcode %v", header.opcode)
+	}
+
+	op.Exec(it, mem, ptr, header)
+	return nil
+}
+
 // Exec runs a program.
 func Exec(memory []Word) error {
+
+	io := &InterpreterIO {
+		InputFunc: func() Word {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Print("Enter input: ")
+			s, err := reader.ReadString('\n')
+			if err != nil {
+				panic(err)
+			}
+			v, err := strconv.Atoi(strings.TrimSpace(s))
+			if err != nil {
+				panic(err)
+			}
+			return Word(v)
+		},
+		OutputFunc: func(value Word) {
+			fmt.Println(value)
+		},
+	}
+
+	it := &Interpreter{IO: io}
+	return it.Exec(memory)
+}
+
+func (it *Interpreter) Exec(memory []Word) error {
 	for address := Address(0); memory[address] != halt; {
-		err := ExecOp(memory, &address)
+		err := it.ExecOp(memory, &address)
 		if err != nil {
 			return err
 		}
