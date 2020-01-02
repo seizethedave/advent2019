@@ -18,7 +18,7 @@ func countOrbits(body *Body, distance int) int {
 	return count
 }
 
-func main() {
+func parseBodyTree(input string) *Body {
 	bodies := make(map[string]*Body)
 
 	for _, line := range strings.Split(input, "\n") {
@@ -44,9 +44,13 @@ func main() {
 
 	rootBody, ok := bodies["COM"]
 	if !ok {
-		panic("COM not found.")
+		panic("COM (root) not found.")
 	}
+	return rootBody
+}
 
+func main() {
+	rootBody := parseBodyTree(input)
 	fmt.Println(countOrbits(rootBody, 0))
 }
 
