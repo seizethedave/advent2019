@@ -1,4 +1,4 @@
-package advent05
+package intcode
 
 import (
 	"bufio"
