@@ -16,15 +16,17 @@ func ParseBodyTree(input string) (*Body, map[string]*Body) {
 	for _, line := range strings.Split(input, "\n") {
 		parts := strings.Split(line, ")")
 		orbited, orbiter := parts[0], parts[1]
-		orbitedBody, ok := bodies[orbited]
-		if !ok {
+
+		orbitedBody := bodies[orbited]
+		if orbitedBody == nil {
 			orbitedBody = &Body{
 				Id: orbited,
 			}
 			bodies[orbited] = orbitedBody
 		}
-		orbiterBody, ok := bodies[orbiter]
-		if !ok {
+
+		orbiterBody := bodies[orbiter]
+		if orbiterBody == nil {
 			orbiterBody = &Body{
 				Id: orbiter,
 			}
