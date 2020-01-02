@@ -1,7 +1,6 @@
-package main
+package advent06
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -10,15 +9,15 @@ type Body struct {
 	orbiters []*Body
 }
 
-func countOrbits(body *Body, distance int) int {
+func CountOrbits(body *Body, distance int) int {
 	count := 0
 	for _, orbiter := range body.orbiters {
-		count += 1 + distance + countOrbits(orbiter, distance+1)
+		count += 1 + distance + CountOrbits(orbiter, distance+1)
 	}
 	return count
 }
 
-func parseBodyTree(input string) *Body {
+func ParseBodyTree(input string) *Body {
 	bodies := make(map[string]*Body)
 
 	for _, line := range strings.Split(input, "\n") {
@@ -49,12 +48,7 @@ func parseBodyTree(input string) *Body {
 	return rootBody
 }
 
-func main() {
-	rootBody := parseBodyTree(input)
-	fmt.Println(countOrbits(rootBody, 0))
-}
-
-var input = `797)67Y
+var Input = `797)67Y
 W32)48L
 J31)N9K
 QQ3)NVL
