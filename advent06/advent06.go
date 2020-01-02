@@ -7,9 +7,10 @@ import (
 type Body struct {
 	Id       string
 	Orbiters []*Body
+	Orbiting *Body
 }
 
-func ParseBodyTree(input string) *Body {
+func ParseBodyTree(input string) (*Body, map[string]*Body) {
 	bodies := make(map[string]*Body)
 
 	for _, line := range strings.Split(input, "\n") {
@@ -31,13 +32,15 @@ func ParseBodyTree(input string) *Body {
 		}
 
 		orbitedBody.Orbiters = append(orbitedBody.Orbiters, orbiterBody)
+		// Install upward pointer.
+		orbiterBody.Orbiting = orbitedBody
 	}
 
 	rootBody, ok := bodies["COM"]
 	if !ok {
 		panic("COM (root) not found.")
 	}
-	return rootBody
+	return rootBody, bodies
 }
 
 var Input = `797)67Y

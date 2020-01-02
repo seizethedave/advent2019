@@ -1,9 +1,9 @@
 package main
 
 import (
-  "fmt"
+	"fmt"
 
-  "github.com/seizethedave/advent2019/advent06"
+	"github.com/seizethedave/advent2019/advent06"
 )
 
 func countOrbits(body *advent06.Body, distance int) int {
@@ -15,6 +15,6 @@ func countOrbits(body *advent06.Body, distance int) int {
 }
 
 func main() {
-	rootBody := advent06.ParseBodyTree(advent06.Input)
+	rootBody, _ := advent06.ParseBodyTree(advent06.Input)
 	fmt.Println(countOrbits(rootBody, 0))
 }
