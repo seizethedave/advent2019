@@ -5,16 +5,8 @@ import (
 )
 
 type Body struct {
-	id       string
-	orbiters []*Body
-}
-
-func CountOrbits(body *Body, distance int) int {
-	count := 0
-	for _, orbiter := range body.orbiters {
-		count += 1 + distance + CountOrbits(orbiter, distance+1)
-	}
-	return count
+	Id       string
+	Orbiters []*Body
 }
 
 func ParseBodyTree(input string) *Body {
@@ -26,19 +18,19 @@ func ParseBodyTree(input string) *Body {
 		orbitedBody, ok := bodies[orbited]
 		if !ok {
 			orbitedBody = &Body{
-				id: orbited,
+				Id: orbited,
 			}
 			bodies[orbited] = orbitedBody
 		}
 		orbiterBody, ok := bodies[orbiter]
 		if !ok {
 			orbiterBody = &Body{
-				id: orbiter,
+				Id: orbiter,
 			}
 			bodies[orbiter] = orbiterBody
 		}
 
-		orbitedBody.orbiters = append(orbitedBody.orbiters, orbiterBody)
+		orbitedBody.Orbiters = append(orbitedBody.Orbiters, orbiterBody)
 	}
 
 	rootBody, ok := bodies["COM"]
