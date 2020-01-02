@@ -13,7 +13,7 @@ type Body struct {
 func countOrbits(body *Body, distance int) int {
 	count := 0
 	for _, orbiter := range body.orbiters {
-		count += 1 + distance + countOrbits(orbiter, distance + 1)
+		count += 1 + distance + countOrbits(orbiter, distance+1)
 	}
 	return count
 }
@@ -22,7 +22,7 @@ func main() {
 	bodies := make(map[string]*Body)
 
 	for _, line := range strings.Split(input, "\n") {
-    parts := strings.Split(line, ")")
+		parts := strings.Split(line, ")")
 		orbited, orbiter := parts[0], parts[1]
 		orbitedBody, ok := bodies[orbited]
 		if !ok {
