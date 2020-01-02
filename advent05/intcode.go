@@ -31,23 +31,22 @@ type Header struct {
 }
 
 func readHeader(header Word) Header {
-	opcode := header % 100
-	flags := header / 100
 	var mask byte
 	i := 0
 
-	for flags != 0 {
+	for flags := header / 100; flags > 0; flags /= 10 {
 		mask |= byte((flags & 1) << i)
-		flags /= 10
 		i++
 	}
 
 	return Header{
-		opcode:    opcode,
+		opcode:    header % 100,
 		paramMask: mask,
 	}
 }
 
+// opref consults the parameter mode definition and returns either the raw value
+// v if it is an indirect value, or the value at mem[v] if it is positional.
 func (h Header) opref(mem []Word, ptr, index Address) Address {
 	immediate := (h.paramMask & (1 << index)) != 0
 	if immediate {
