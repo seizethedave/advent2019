@@ -6,11 +6,6 @@ import (
 	"github.com/seizethedave/advent2019/lib/intcode"
 )
 
-const (
-	searchMin = 0
-	searchMax = 4
-)
-
 func multiplexResults(results []intcode.Word) func() intcode.Word {
 	calls := 0
 	return func() intcode.Word {
@@ -19,81 +14,54 @@ func multiplexResults(results []intcode.Word) func() intcode.Word {
 	}
 }
 
+func visitPermutations(prefix, items []intcode.Word, callback func([]intcode.Word)) {
+	if len(items) == 0 {
+		callback(prefix)
+		return
+	}
+
+	for i, atom := range items {
+		// append modifies the shared items/prefix backing arrays, so we gotta copy 'em.
+		subPrefix := make([]intcode.Word, len(prefix))
+		copy(subPrefix, prefix)
+		subItems := make([]intcode.Word, len(items))
+		copy(subItems, items)
+		visitPermutations(append(subPrefix, atom), append(subItems[:i], subItems[i+1:]...), callback)
+	}
+}
+
 func main() {
 	code := []intcode.Word{3, 8, 1001, 8, 10, 8, 105, 1, 0, 0, 21, 38, 59, 76, 89, 106, 187, 268, 349, 430, 99999, 3, 9, 1002, 9, 3, 9, 101, 2, 9, 9, 1002, 9, 4, 9, 4, 9, 99, 3, 9, 1001, 9, 5, 9, 1002, 9, 5, 9, 1001, 9, 2, 9, 1002, 9, 3, 9, 4, 9, 99, 3, 9, 1001, 9, 4, 9, 102, 4, 9, 9, 1001, 9, 3, 9, 4, 9, 99, 3, 9, 101, 4, 9, 9, 1002, 9, 5, 9, 4, 9, 99, 3, 9, 1002, 9, 3, 9, 101, 5, 9, 9, 1002, 9, 3, 9, 4, 9, 99, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 99, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 99, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 99, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 99, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 99}
 
 	bestScore := intcode.Word(0)
 
-	for m1 := searchMin; m1 <= searchMax; m1++ {
-		var output1 intcode.Word
+	visitPermutations([]intcode.Word{}, []intcode.Word{0, 1, 2, 3, 4}, func(perm []intcode.Word) {
+		var output intcode.Word
 
-		interp1 := &intcode.Interpreter{
-			IO: &intcode.InterpreterIO{
-				InputFunc: multiplexResults([]intcode.Word{intcode.Word(m1), 0}),
-				OutputFunc: func(value intcode.Word) {
-					output1 = value
-				},
-			},
-		}
-		interp1.Exec(code)
+		for i, phase := range perm {
+			var signal intcode.Word
 
-		for m2 := searchMin; m2 <= searchMax; m2++ {
-			var output2 intcode.Word
-			interp2 := &intcode.Interpreter{
+			if i == 0 {
+				signal = 0
+			} else {
+				signal = output
+			}
+
+			interp := &intcode.Interpreter{
 				IO: &intcode.InterpreterIO{
-					InputFunc: multiplexResults([]intcode.Word{intcode.Word(m2), output1}),
+					InputFunc: multiplexResults([]intcode.Word{phase, signal}),
 					OutputFunc: func(value intcode.Word) {
-						output2 = value
+						output = value
 					},
 				},
 			}
-			interp2.Exec(code)
-
-			for m3 := searchMin; m3 <= searchMax; m3++ {
-				var output3 intcode.Word
-				interp3 := &intcode.Interpreter{
-					IO: &intcode.InterpreterIO{
-						InputFunc: multiplexResults([]intcode.Word{intcode.Word(m3), output2}),
-						OutputFunc: func(value intcode.Word) {
-							output3 = value
-						},
-					},
-				}
-				interp3.Exec(code)
-
-				for m4 := searchMin; m4 <= searchMax; m4++ {
-					var output4 intcode.Word
-					interp4 := &intcode.Interpreter{
-						IO: &intcode.InterpreterIO{
-							InputFunc: multiplexResults([]intcode.Word{intcode.Word(m4), output3}),
-							OutputFunc: func(value intcode.Word) {
-								output4 = value
-							},
-						},
-					}
-					interp4.Exec(code)
-
-					for m5 := searchMin; m5 <= searchMax; m5++ {
-						var output5 intcode.Word
-						interp5 := &intcode.Interpreter{
-							IO: &intcode.InterpreterIO{
-								InputFunc: multiplexResults([]intcode.Word{intcode.Word(m5), output4}),
-								OutputFunc: func(value intcode.Word) {
-									output5 = value
-								},
-							},
-						}
-						interp5.Exec(code)
-						fmt.Println("got output from amp 5", output5, m1, m2, m3, m4, m5)
-
-						if output5 > bestScore {
-							bestScore = output5
-						}
-					}
-				}
-			}
+			interp.Exec(code)
 		}
-	}
+
+		if output > bestScore {
+			bestScore = output
+		}
+	})
 
 	fmt.Println(bestScore)
 }
