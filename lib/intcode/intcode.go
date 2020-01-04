@@ -9,11 +9,7 @@ import (
 )
 
 type Interpreter struct {
-	IO *InterpreterIO
-}
-
-type InterpreterIO struct {
-	InputFunc func() Word
+	InputFunc  func() Word
 	OutputFunc func(Word)
 }
 
@@ -154,11 +150,11 @@ func opMul(it *Interpreter, mem []Word, lhs, rhs, out Address) {
 }
 
 func opInput(it *Interpreter, mem []Word, operand Address) {
-	mem[operand] = it.IO.InputFunc()
+	mem[operand] = it.InputFunc()
 }
 
 func opOutput(it *Interpreter, mem []Word, operand Address) {
-	it.IO.OutputFunc(mem[operand])
+	it.OutputFunc(mem[operand])
 }
 
 func opLessThan(it *Interpreter, mem []Word, lhs, rhs, out Address) {
@@ -214,8 +210,7 @@ func (it *Interpreter) ExecOp(mem []Word, ptr *Address) error {
 
 // Exec runs a program.
 func Exec(memory []Word) error {
-
-	io := &InterpreterIO {
+	it := &Interpreter{
 		InputFunc: func() Word {
 			reader := bufio.NewReader(os.Stdin)
 			fmt.Print("Enter input: ")
@@ -233,8 +228,6 @@ func Exec(memory []Word) error {
 			fmt.Println(value)
 		},
 	}
-
-	it := &Interpreter{IO: io}
 	return it.Exec(memory)
 }
 

@@ -48,11 +48,9 @@ func main() {
 			}
 
 			interp := &intcode.Interpreter{
-				IO: &intcode.InterpreterIO{
-					InputFunc: multiplexResults([]intcode.Word{phase, signal}),
-					OutputFunc: func(value intcode.Word) {
-						output = value
-					},
+				InputFunc: multiplexResults([]intcode.Word{phase, signal}),
+				OutputFunc: func(value intcode.Word) {
+					output = value
 				},
 			}
 			interp.Exec(code)
