@@ -38,17 +38,9 @@ func main() {
 	visitPermutations([]intcode.Word{}, []intcode.Word{0, 1, 2, 3, 4}, func(perm []intcode.Word) {
 		var output intcode.Word
 
-		for i, phase := range perm {
-			var signal intcode.Word
-
-			if i == 0 {
-				signal = 0
-			} else {
-				signal = output
-			}
-
+		for _, phase := range perm {
 			interp := &intcode.Interpreter{
-				InputFunc: multiplexResults([]intcode.Word{phase, signal}),
+				InputFunc: multiplexResults([]intcode.Word{phase, output}),
 				OutputFunc: func(value intcode.Word) {
 					output = value
 				},
