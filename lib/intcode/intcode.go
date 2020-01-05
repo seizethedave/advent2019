@@ -37,7 +37,7 @@ const (
 	immediate  = byte(1)
 	relative   = byte(2)
 
-	debug = true
+	debug = false
 )
 
 type Header struct {
