@@ -3,14 +3,18 @@ package intcode
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
-	"strings"
 )
 
 type Interpreter struct {
-	InputFunc  func() Word
-	OutputFunc func(Word)
+	Id           string
+	scanner      *bufio.Scanner
+	InputStream  io.Reader
+	OutputStream io.Writer
+	InputFunc    func() Word
+	OutputFunc   func(Word)
 }
 
 type Word int
@@ -94,7 +98,7 @@ type Runnable interface {
 
 func (op SimpleOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+2])
+		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+2])
 	}
 
 	op.fun(it, mem, header.opref(mem, *ptr, 0))
@@ -103,7 +107,7 @@ func (op SimpleOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header
 
 func (op BinaryOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+4])
+		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+4])
 	}
 
 	op.fun(it, mem, header.opref(mem, *ptr, 0), header.opref(mem, *ptr, 1), Address(mem[*ptr+3]))
@@ -112,7 +116,7 @@ func (op BinaryOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header
 
 func (op JumpIfTrueOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+3])
+		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+3])
 	}
 	if mem[header.opref(mem, *ptr, 0)] != 0 {
 		*ptr = Address(mem[header.opref(mem, *ptr, 1)])
@@ -123,7 +127,7 @@ func (op JumpIfTrueOp) Exec(it *Interpreter, mem []Word, ptr *Address, header He
 
 func (op JumpIfFalseOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+3])
+		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+3])
 	}
 	if mem[header.opref(mem, *ptr, 0)] == 0 {
 		*ptr = Address(mem[header.opref(mem, *ptr, 1)])
@@ -134,7 +138,7 @@ func (op JumpIfFalseOp) Exec(it *Interpreter, mem []Word, ptr *Address, header H
 
 func (op CompareOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", mem[*ptr:*ptr+4])
+		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+4])
 	}
 
 	op.fun(it, mem, header.opref(mem, *ptr, 0), header.opref(mem, *ptr, 1), Address(mem[*ptr+3]))
@@ -211,27 +215,46 @@ func (it *Interpreter) ExecOp(mem []Word, ptr *Address) error {
 // Exec runs a program.
 func Exec(memory []Word) error {
 	it := &Interpreter{
-		InputFunc: func() Word {
-			reader := bufio.NewReader(os.Stdin)
-			fmt.Print("Enter input: ")
-			s, err := reader.ReadString('\n')
-			if err != nil {
-				panic(err)
-			}
-			v, err := strconv.Atoi(strings.TrimSpace(s))
-			if err != nil {
-				panic(err)
-			}
-			return Word(v)
-		},
-		OutputFunc: func(value Word) {
-			fmt.Println(value)
-		},
+		InputStream:  os.Stdin,
+		OutputStream: os.Stdout,
 	}
 	return it.Exec(memory)
 }
 
+func (it *Interpreter) ScanWord() Word {
+	if !it.scanner.Scan() {
+		panic("no scan")
+	}
+	v, err := strconv.Atoi(it.scanner.Text())
+	if err != nil {
+		panic(err)
+	}
+	return Word(v)
+}
+
 func (it *Interpreter) Exec(memory []Word) error {
+	if it.InputFunc == nil {
+		it.InputFunc = func() Word {
+			//fmt.Print("Enter input: ")
+			w := it.ScanWord()
+			if debug {
+				fmt.Println("  >>", it.Id, "read word", w)
+			}
+			return w
+		}
+	}
+
+	if it.OutputFunc == nil {
+		it.OutputFunc = func(value Word) {
+			if debug {
+				fmt.Println("  <<", it.Id, "writing word", value)
+			}
+			fmt.Fprintln(it.OutputStream, value)
+		}
+	}
+
+	it.scanner = bufio.NewScanner(it.InputStream)
+
 	for address := Address(0); memory[address] != halt; {
 		err := it.ExecOp(memory, &address)
 		if err != nil {
