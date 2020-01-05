@@ -235,20 +235,12 @@ func (it *Interpreter) ScanWord() Word {
 func (it *Interpreter) Exec(memory []Word) error {
 	if it.InputFunc == nil {
 		it.InputFunc = func() Word {
-			//fmt.Print("Enter input: ")
-			w := it.ScanWord()
-			if debug {
-				fmt.Println("  >>", it.Id, "read word", w)
-			}
-			return w
+			return it.ScanWord()
 		}
 	}
 
 	if it.OutputFunc == nil {
 		it.OutputFunc = func(value Word) {
-			if debug {
-				fmt.Println("  <<", it.Id, "writing word", value)
-			}
 			fmt.Fprintln(it.OutputStream, value)
 		}
 	}
