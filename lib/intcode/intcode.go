@@ -10,6 +10,7 @@ import (
 
 type Interpreter struct {
 	Id           string
+	relativeBase Address
 	scanner      *bufio.Scanner
 	InputStream  io.Reader
 	OutputStream io.Writer
@@ -21,47 +22,58 @@ type Word int
 type Address int
 
 const (
-	add         = Word(1)
-	mul         = Word(2)
-	input       = Word(3)
-	output      = Word(4)
-	jumpIfTrue  = Word(5)
-	jumpIfFalse = Word(6)
-	lessThan    = Word(7)
-	equals      = Word(8)
-	halt        = Word(99)
+	add           = Word(1)
+	mul           = Word(2)
+	input         = Word(3)
+	output        = Word(4)
+	jumpIfTrue    = Word(5)
+	jumpIfFalse   = Word(6)
+	lessThan      = Word(7)
+	equals        = Word(8)
+	adjustRelBase = Word(9)
+	halt          = Word(99)
 
-	debug = false
+	positional = byte(0)
+	immediate  = byte(1)
+	relative   = byte(2)
+
+	debug = true
 )
 
 type Header struct {
-	opcode    Word
-	paramMask byte
+	opcode     Word
+	paramModes []byte
 }
 
 func readHeader(header Word) Header {
-	var mask byte
-	i := 0
+	var modes []byte
 
 	for flags := header / 100; flags > 0; flags /= 10 {
-		mask |= byte((flags & 1) << i)
-		i++
+		modes = append(modes, byte(flags%10))
 	}
 
 	return Header{
-		opcode:    header % 100,
-		paramMask: mask,
+		opcode:     header % 100,
+		paramModes: modes,
 	}
 }
 
 // opref consults the parameter mode definition and returns either the raw value
 // v if it is an indirect value, or the value at mem[v] if it is positional.
-func (h Header) opref(mem []Word, ptr, index Address) Address {
-	immediate := (h.paramMask & (1 << index)) != 0
-	if immediate {
+func (h Header) opref(it *Interpreter, mem []Word, ptr, index Address) Address {
+	mode := positional
+	if int(index) < len(h.paramModes) {
+		mode = h.paramModes[index]
+	}
+	switch mode {
+	case immediate:
 		return ptr + 1 + index
-	} else {
+	case positional:
 		return Address(mem[ptr+1+index])
+	case relative:
+		return it.relativeBase + Address(mem[ptr+1+index])
+	default:
+		panic("unknown param mode")
 	}
 }
 
@@ -98,28 +110,32 @@ type Runnable interface {
 
 func (op SimpleOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+2])
+		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+2], "@", it.relativeBase)
 	}
 
-	op.fun(it, mem, header.opref(mem, *ptr, 0))
+	op.fun(it, mem, header.opref(it, mem, *ptr, 0))
 	*ptr += 2
 }
 
 func (op BinaryOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+4])
+		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+4], it.relativeBase)
 	}
 
-	op.fun(it, mem, header.opref(mem, *ptr, 0), header.opref(mem, *ptr, 1), Address(mem[*ptr+3]))
+	op.fun(it, mem,
+		header.opref(it, mem, *ptr, 0),
+		header.opref(it, mem, *ptr, 1),
+		header.opref(it, mem, *ptr, 2),
+	)
 	*ptr += 4
 }
 
 func (op JumpIfTrueOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+3])
+		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+3], it.relativeBase)
 	}
-	if mem[header.opref(mem, *ptr, 0)] != 0 {
-		*ptr = Address(mem[header.opref(mem, *ptr, 1)])
+	if mem[header.opref(it, mem, *ptr, 0)] != 0 {
+		*ptr = Address(mem[header.opref(it, mem, *ptr, 1)])
 	} else {
 		*ptr += 3
 	}
@@ -127,10 +143,10 @@ func (op JumpIfTrueOp) Exec(it *Interpreter, mem []Word, ptr *Address, header He
 
 func (op JumpIfFalseOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+3])
+		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+3], it.relativeBase)
 	}
-	if mem[header.opref(mem, *ptr, 0)] == 0 {
-		*ptr = Address(mem[header.opref(mem, *ptr, 1)])
+	if mem[header.opref(it, mem, *ptr, 0)] == 0 {
+		*ptr = Address(mem[header.opref(it, mem, *ptr, 1)])
 	} else {
 		*ptr += 3
 	}
@@ -138,10 +154,14 @@ func (op JumpIfFalseOp) Exec(it *Interpreter, mem []Word, ptr *Address, header H
 
 func (op CompareOp) Exec(it *Interpreter, mem []Word, ptr *Address, header Header) {
 	if debug {
-		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+4])
+		fmt.Fprintln(os.Stderr, " >", it.Id, mem[*ptr:*ptr+4], it.relativeBase)
 	}
 
-	op.fun(it, mem, header.opref(mem, *ptr, 0), header.opref(mem, *ptr, 1), Address(mem[*ptr+3]))
+	op.fun(it, mem,
+		header.opref(it, mem, *ptr, 0),
+		header.opref(it, mem, *ptr, 1),
+		header.opref(it, mem, *ptr, 2),
+	)
 	*ptr += 4
 }
 
@@ -177,6 +197,10 @@ func opEquals(it *Interpreter, mem []Word, lhs, rhs, out Address) {
 	}
 }
 
+func opAdjustRelBase(it *Interpreter, mem []Word, operand Address) {
+	it.relativeBase += Address(mem[operand])
+}
+
 var ops = map[Word]Runnable{
 	add: BinaryOp{
 		fun: opAdd,
@@ -197,6 +221,9 @@ var ops = map[Word]Runnable{
 	},
 	equals: CompareOp{
 		fun: opEquals,
+	},
+	adjustRelBase: SimpleOp{
+		fun: opAdjustRelBase,
 	},
 }
 
